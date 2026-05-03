@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PS-4 · Hybrid Predictive Traffic Intelligence Model</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060810;--bg2:#0b0f1e;--bg3:#111828;--bg4:#182035;--bg5:#1e2840;
+  --border:#1c2840;--border2:#243558;
+  --txt:#b8cce8;--txt2:#5a7296;--txt3:#2a3f60;
+  --red:#ff2d55;--red2:#cc0033;--red3:#3d0010;
+  --amber:#ff9500;--amber2:#cc7000;--amber3:#3d2200;
+  --green:#30d158;--green2:#1a9e38;--green3:#003315;
+  --blue:#0a84ff;--blue2:#0060cc;--blue3:#001540;
+  --cyan:#5ac8fa;--cyan2:#2a9ad4;
+  --purple:#bf5af2;--purple2:#8b20cc;
+  --yellow:#ffd60a;
+  --mono:'Share Tech Mono',monospace;
+  --sans:'Barlow Condensed',sans-serif;
+  --body:'Barlow',sans-serif;
+}
+
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:13px;min-height:100vh;overflow:hidden}
+
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;background:var(--bg2);border-bottom:2px solid var(--border);height:44px;position:sticky;top:0;z-index:200}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.logo{font-family:var(--mono);font-size:13px;font-weight:400;letter-spacing:2px;color:var(--txt2)}
+.logo em{color:var(--red);font-style:normal}
+.badge{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:2px;letter-spacing:2px;font-weight:400}
+.badge.live{background:var(--red3);color:var(--red);border:1px solid var(--red2);animation:blink 1.5s infinite}
+.badge.lstm{background:var(--blue3);color:var(--blue);border:1px solid var(--blue2)}
+.badge.fusion{background:rgba(191,90,242,.1);color:var(--purple);border:1px solid var(--purple2)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+.hdr-stats{display:flex;gap:24px}
+.hstat{font-family:var(--mono);font-size:10px;color:var(--txt2)}
+.hstat b{color:var(--txt);font-weight:400}
+
+/* ── LAYOUT: 3 col ── */
+.layout{display:grid;grid-template-columns:260px 1fr 260px;height:calc(100vh - 44px);overflow:hidden}
+
+/* ── PANELS ── */
+.panel{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.panel.right{border-right:none;border-left:1px solid var(--border)}
+.ph{font-family:var(--mono);font-size:9px;letter-spacing:2.5px;color:var(--txt3);padding:10px 14px 7px;border-bottom:1px solid var(--border)}
+
+/* ── CENTER ── */
+.center{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+.map-area{flex:1;position:relative;overflow:hidden}
+#city-canvas{display:block;width:100%;height:100%}
+
+.map-overlays{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:5px;z-index:10}
+.ov-btn{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;background:rgba(6,8,16,.85);border:1px solid var(--border);color:var(--txt2);padding:4px 10px;border-radius:2px;cursor:pointer;transition:all .15s}
+.ov-btn:hover,.ov-btn.on{border-color:var(--border2);color:var(--txt)}
+.ov-btn.on{background:rgba(10,132,255,.12);border-color:var(--blue2);color:var(--blue)}
+
+.ts-bar{position:absolute;top:10px;right:10px;font-family:var(--mono);font-size:10px;color:var(--txt3);background:rgba(6,8,16,.85);padding:5px 10px;border-radius:2px;border:1px solid var(--border)}
+
+.legend{position:absolute;bottom:10px;left:10px;background:rgba(6,8,16,.9);border:1px solid var(--border);border-radius:3px;padding:9px 12px}
+.legend-title{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--txt3);margin-bottom:7px}
+.legend-row{display:flex;align-items:center;gap:7px;margin-bottom:4px;font-family:var(--mono);font-size:9px;color:var(--txt2)}
+.ldot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.lline{width:20px;height:3px;border-radius:2px;flex-shrink:0}
+
+/* ── CCTV STRIP ── */
+.cctv-strip{height:130px;background:var(--bg2);border-top:1px solid var(--border);display:flex;gap:0;overflow:hidden;flex-shrink:0}
+.cctv-feed{flex:1;border-right:1px solid var(--border);position:relative;cursor:pointer;overflow:hidden}
+.cctv-feed:last-child{border-right:none}
+.cctv-feed canvas{display:block;width:100%;height:100%}
+.cctv-label{position:absolute;top:4px;left:5px;font-family:var(--mono);font-size:8px;color:rgba(255,255,255,.6);letter-spacing:1px;background:rgba(0,0,0,.5);padding:1px 4px;border-radius:1px}
+.cctv-density{position:absolute;bottom:4px;right:5px;font-family:var(--mono);font-size:9px;font-weight:400;padding:1px 5px;border-radius:2px}
+.cctv-density.high{background:var(--red3);color:var(--red);border:1px solid var(--red2)}
+.cctv-density.med{background:var(--amber3);color:var(--amber);border:1px solid var(--amber2)}
+.cctv-density.low{background:var(--green3);color:var(--green);border:1px solid var(--green2)}
+.cctv-rec{position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink 1.2s infinite}
+
+/* ── LEFT PANEL: JUNCTIONS ── */
+.junc-card{padding:9px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.junc-card:hover,.junc-card.active{background:var(--bg3)}
+.junc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.junc-name{font-family:var(--mono);font-size:10px;font-weight:400}
+.jam-badge{font-family:var(--mono);font-size:8px;padding:1px 5px;border-radius:2px;letter-spacing:1px}
+.jam-5{background:var(--red3);color:var(--red);border:1px solid var(--red2)}
+.jam-4{background:var(--amber3);color:var(--amber);border:1px solid var(--amber2)}
+.jam-3{background:rgba(255,214,10,.1);color:var(--yellow);border:1px solid rgba(255,214,10,.4)}
+.jam-2{background:var(--green3);color:var(--green);border:1px solid var(--green2)}
+.jam-1{background:var(--blue3);color:var(--blue);border:1px solid var(--blue2)}
+.junc-meta{font-family:var(--mono);font-size:9px;color:var(--txt2);line-height:1.7}
+.flow-bar{height:3px;background:var(--bg5);border-radius:1px;margin-top:5px;overflow:hidden}
+.flow-fill{height:100%;border-radius:1px;transition:width .5s}
+
+/* ── RIGHT PANEL ── */
+.section{padding:10px 14px;border-bottom:1px solid var(--border)}
+.slbl{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--txt3);margin-bottom:8px}
+
+.kpi-g{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.kpi-c{background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:7px 9px}
+.kpi-v{font-family:var(--mono);font-size:15px;line-height:1}
+.kpi-l{font-family:var(--mono);font-size:8px;color:var(--txt2);margin-top:3px;letter-spacing:1px}
+
+.fusion-meter{display:flex;flex-direction:column;gap:5px}
+.fm-row{display:flex;align-items:center;gap:7px}
+.fm-lbl{font-family:var(--mono);font-size:9px;color:var(--txt2);width:80px;flex-shrink:0}
+.fm-bar{flex:1;height:5px;background:var(--bg5);border-radius:2px;overflow:hidden}
+.fm-fill{height:100%;border-radius:2px;transition:width .6s}
+.fm-val{font-family:var(--mono);font-size:9px;width:26px;text-align:right;flex-shrink:0}
+
+/* LSTM forecast chart */
+.lstm-chart{position:relative;height:90px}
+.lstm-chart canvas{position:absolute;inset:0;width:100%;height:100%}
+
+.pred-horizon{display:flex;gap:4px;margin-bottom:7px}
+.ph-btn{font-family:var(--mono);font-size:8px;letter-spacing:1px;padding:2px 7px;border-radius:2px;cursor:pointer;border:1px solid var(--border);color:var(--txt2);transition:all .15s}
+.ph-btn.on{background:var(--blue3);border-color:var(--blue2);color:var(--blue)}
+
+.alert-list{display:flex;flex-direction:column;gap:4px}
+.alert{padding:5px 7px;border-radius:3px;font-family:var(--mono);font-size:9px;line-height:1.5;border:1px solid}
+.alert.crit{background:var(--red3);border-color:var(--red2);color:var(--red)}
+.alert.warn{background:var(--amber3);border-color:var(--amber2);color:var(--amber)}
+.alert.info{background:var(--blue3);border-color:var(--blue2);color:var(--blue)}
+.alert.ok{background:var(--green3);border-color:var(--green2);color:var(--green)}
+.alert-t{color:var(--txt3);margin-right:5px}
+
+/* Validation strip */
+.validation{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:3px;font-family:var(--mono);font-size:9px;margin-bottom:5px}
+.val-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.val.confirmed{background:rgba(48,209,88,.08);border:1px solid var(--green2);color:var(--green)}
+.val.false-pos{background:rgba(255,45,85,.08);border:1px solid var(--red2);color:var(--red)}
+.val.unverified{background:rgba(255,149,0,.08);border:1px solid var(--amber2);color:var(--amber)}
+
+/* Standstill probability meter */
+.prob-ring{display:flex;justify-content:center;padding:8px 0}
+.prob-ring svg{width:80px;height:80px}
+.prob-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+
+/* Packet stream bottom */
+.px-stream{position:absolute;bottom:10px;right:10px;background:rgba(6,8,16,.9);border:1px solid var(--border);border-radius:3px;padding:6px 10px;width:220px}
+.px-title{font-family:var(--mono);font-size:8px;letter-spacing:2px;color:var(--txt3);margin-bottom:5px}
+.px-row{display:flex;align-items:center;gap:4px;margin-bottom:3px;font-family:var(--mono);font-size:8px;color:var(--txt2)}
+.px-bar{flex:1;height:4px;background:var(--bg5);border-radius:2px;overflow:hidden}
+.px-fill{height:100%;border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-left">
+    <div class="logo">TRAFFIC<em>·</em>NEXUS &nbsp;<span style="color:var(--txt3)">|</span>&nbsp; PS-4</div>
+    <div class="badge live">● LIVE</div>
+    <div class="badge lstm">LSTM ACTIVE</div>
+    <div class="badge fusion">CCTV+GPS FUSION</div>
+  </div>
+  <div class="hdr-stats">
+    <div class="hstat">JUNCTIONS <b id="h-j">18</b></div>
+    <div class="hstat">VEHICLES <b id="h-v">4,241</b></div>
+    <div class="hstat">CCTV FEEDS <b>6 ACTIVE</b></div>
+    <div class="hstat">FALSE POS ELIMINATED <b id="h-fp">14</b></div>
+    <div class="hstat">MODEL ACC <b>91.4%</b></div>
+  </div>
+</div>
+
+<!-- 3-COL LAYOUT -->
+<div class="layout">
+
+  <!-- LEFT: JUNCTION LIST -->
+  <div class="panel" id="junc-panel">
+    <div class="ph">MONITORED JUNCTIONS · JAM LEVEL</div>
+    <div id="junc-list"></div>
+  </div>
+
+  <!-- CENTER: CITY MAP + CCTV -->
+  <div class="center">
+    <div class="map-area">
+      <canvas id="city-canvas"></canvas>
+
+      <div class="map-overlays">
+        <button class="ov-btn on" onclick="setLayer('congestion')" id="lb-cong">CONGESTION</button>
+        <button class="ov-btn" onclick="setLayer('prediction')" id="lb-pred">PREDICTION</button>
+        <button class="ov-btn" onclick="setLayer('cctv')" id="lb-cctv">CCTV ZONES</button>
+        <button class="ov-btn" onclick="setLayer('flow')" id="lb-flow">FLOW VECTORS</button>
+        <button class="ov-btn" onclick="injectIncident()">+ INJECT INCIDENT</button>
+      </div>
+
+      <div class="ts-bar" id="ts-bar">--</div>
+
+      <div class="legend">
+        <div class="legend-title">JAM LEVEL</div>
+        <div class="legend-row"><div class="ldot" style="background:var(--red)"></div>L5 STANDSTILL</div>
+        <div class="legend-row"><div class="ldot" style="background:var(--amber)"></div>L4 HEAVY</div>
+        <div class="legend-row"><div class="ldot" style="background:var(--yellow)"></div>L3 MODERATE</div>
+        <div class="legend-row"><div class="ldot" style="background:var(--green)"></div>L1-2 CLEAR</div>
+        <div style="margin-top:6px">
+        <div class="legend-row"><div class="lline" style="background:var(--blue)"></div>GPS ROUTE</div>
+        <div class="legend-row"><div class="lline" style="background:rgba(191,90,242,.6);border-top:1px dashed var(--purple)"></div>PREDICTED JAM</div>
+        </div>
+      </div>
+
+      <div class="px-stream" id="px-stream">
+        <div class="px-title">GPS · DATA PIPELINE</div>
+        <div id="px-rows"></div>
+      </div>
+    </div>
+
+    <!-- CCTV STRIP -->
+    <div class="cctv-strip" id="cctv-strip"></div>
+  </div>
+
+  <!-- RIGHT: ANALYTICS -->
+  <div class="panel right">
+    <div class="ph">ANALYTICS · SELECTED JUNCTION</div>
+
+    <div class="section">
+      <div class="slbl">REAL-TIME KPIs</div>
+      <div class="kpi-g">
+        <div class="kpi-c"><div class="kpi-v" id="k-density" style="color:var(--red)">--</div><div class="kpi-l">VEHICLE DENSITY</div></div>
+        <div class="kpi-c"><div class="kpi-v" id="k-flow" style="color:var(--blue)">--</div><div class="kpi-l">FLOW RATE /MIN</div></div>
+        <div class="kpi-c"><div class="kpi-v" id="k-speed" style="color:var(--green)">--</div><div class="kpi-l">AVG SPEED KM/H</div></div>
+        <div class="kpi-c"><div class="kpi-v" id="k-eta" style="color:var(--amber)">--</div><div class="kpi-l">ETA DELAY (MIN)</div></div>
+      </div>
+    </div>
+
+    <!-- Cross-modal fusion -->
+    <div class="section">
+      <div class="slbl">CROSS-MODAL FUSION LAYER</div>
+      <div class="fusion-meter" id="fusion-meter"></div>
+    </div>
+
+    <!-- Validation -->
+    <div class="section">
+      <div class="slbl">CONGESTION ALERT VALIDATION</div>
+      <div id="val-list"></div>
+    </div>
+
+    <!-- LSTM Forecast -->
+    <div class="section">
+      <div class="slbl">LSTM STANDSTILL PROBABILITY</div>
+      <div class="pred-horizon">
+        <div class="ph-btn on" onclick="setHorizon(15,this)">15 MIN</div>
+        <div class="ph-btn" onclick="setHorizon(30,this)">30 MIN</div>
+        <div class="ph-btn" onclick="setHorizon(45,this)">45 MIN</div>
+      </div>
+      <div class="lstm-chart">
+        <canvas id="lstm-canvas"></canvas>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px">
+        <span style="font-family:var(--mono);font-size:8px;color:var(--txt3)">HISTORICAL</span>
+        <span id="lstm-prob-lbl" style="font-family:var(--mono);font-size:10px;color:var(--red)">-- % L5 PROBABILITY</span>
+        <span style="font-family:var(--mono);font-size:8px;color:var(--purple)">FORECAST →</span>
+      </div>
+    </div>
+
+    <!-- System alerts -->
+    <div class="section" style="border-bottom:none">
+      <div class="slbl">SYSTEM ALERTS</div>
+      <div class="alert-list" id="alert-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── CANVAS SETUP ─────────────────────────────────────────
+const C = document.getElementById('city-canvas');
+const ctx = C.getContext('2d');
+let W, H, tick = 0, currentLayer = 'congestion', selectedJunc = null, horizonMin = 15;
+
+function resize() {
+  const r = C.parentElement.getBoundingClientRect();
+  W = C.width = r.width * devicePixelRatio;
+  H = C.height = r.height * devicePixelRatio;
+  C.style.width = r.width + 'px';
+  C.style.height = r.height + 'px';
+}
+window.addEventListener('resize', () => { resize(); });
+resize();
+
+// ── JUNCTION DATA ────────────────────────────────────────
+const junctions = [
+  {id:'JX-01',name:'Central Interchange',lat:.48,lng:.50,level:5,density:94,flow:8,speed:4,eta:22,cctv:'CAM-01',gps:88,cv:91,fusion:90,incident:true},
+  {id:'JX-02',name:'North Arterial Merge',lat:.18,lng:.35,level:4,density:78,flow:18,speed:14,eta:12,cctv:'CAM-02',gps:82,cv:79,fusion:81,incident:false},
+  {id:'JX-03',name:'East Ring Connector',lat:.38,lng:.82,level:4,density:72,flow:22,speed:18,eta:10,cctv:'CAM-03',gps:75,cv:80,fusion:78,incident:false},
+  {id:'JX-04',name:'Southbound Expressway',lat:.75,lng:.42,level:3,density:58,flow:34,speed:28,eta:5,cctv:'CAM-04',gps:68,cv:62,fusion:66,incident:false},
+  {id:'JX-05',name:'West Flyover Junction',lat:.52,lng:.15,level:3,density:55,flow:38,speed:32,eta:4,cctv:'CAM-05',gps:64,cv:58,fusion:62,incident:false},
+  {id:'JX-06',name:'Tech Park Entry',lat:.28,lng:.60,level:4,density:76,flow:16,speed:12,eta:14,cctv:'CAM-06',gps:78,cv:82,fusion:80,incident:false},
+  {id:'JX-07',name:'Airport Spur Gate',lat:.12,lng:.70,level:2,density:32,flow:58,speed:54,eta:1,cctv:'CAM-01',gps:40,cv:38,fusion:39,incident:false},
+  {id:'JX-08',name:'Market District Sq',lat:.62,lng:.28,level:3,density:62,flow:30,speed:24,eta:6,cctv:'CAM-02',gps:65,cv:70,fusion:68,incident:false},
+  {id:'JX-09',name:'Old City Bypass',lat:.68,lng:.65,level:2,density:38,flow:52,speed:46,eta:2,cctv:'CAM-03',gps:42,cv:45,fusion:44,incident:false},
+  {id:'JX-10',name:'Industrial Zone Gate',lat:.82,lng:.22,level:3,density:60,flow:32,speed:26,eta:5,cctv:'CAM-04',gps:62,cv:66,fusion:64,incident:false},
+  {id:'JX-11',name:'University Roundabout',lat:.22,lng:.18,level:1,density:18,flow:72,speed:60,eta:0,cctv:'CAM-05',gps:22,cv:20,fusion:21,incident:false},
+  {id:'JX-12',name:'Stadium Connector',lat:.42,lng:.78,level:2,density:40,flow:50,speed:42,eta:2,cctv:'CAM-06',gps:44,cv:48,fusion:46,incident:false},
+];
+
+// ── ROAD NETWORK ─────────────────────────────────────────
+const roads = [
+  [.18,.35,.48,.50],[.48,.50,.38,.82],[.48,.50,.75,.42],
+  [.48,.50,.52,.15],[.48,.50,.28,.60],[.18,.35,.12,.70],
+  [.28,.60,.38,.82],[.75,.42,.62,.28],[.75,.42,.82,.22],
+  [.52,.15,.22,.18],[.62,.28,.68,.65],[.38,.82,.42,.78],
+  [.12,.70,.28,.60],[.82,.22,.68,.65],[.22,.18,.18,.35],
+  [.42,.78,.68,.65],[.68,.65,.75,.42],[.28,.60,.22,.18],
+];
+
+// ── JAM COLORS ───────────────────────────────────────────
+function jamColor(level) {
+  const c = {5:'#ff2d55',4:'#ff9500',3:'#ffd60a',2:'#30d158',1:'#0a84ff'};
+  return c[level] || '#5a7296';
+}
+function jamAlpha(level) { return .2 + level * .12; }
+
+// ── CITY CANVAS DRAW ─────────────────────────────────────
+function drawCity() {
+  const dpr = devicePixelRatio;
+  ctx.fillStyle = '#060810'; ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(18,30,55,0.8)'; ctx.lineWidth = .5*dpr;
+  const g = 30*dpr;
+  for(let x=0;x<W;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(let y=0;y<H;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+
+  // District blocks
+  const districts = [
+    [.05,.05,.35,.42],[.58,.05,.95,.40],[.05,.55,.38,.92],[.62,.55,.92,.92]
+  ];
+  districts.forEach(([x1,y1,x2,y2]) => {
+    ctx.fillStyle = 'rgba(15,22,40,0.7)';
+    ctx.fillRect(W*x1,H*y1,W*(x2-x1),H*(y2-y1));
+    ctx.strokeStyle = 'rgba(28,40,64,0.5)'; ctx.lineWidth = .8*dpr;
+    ctx.strokeRect(W*x1,H*y1,W*(x2-x1),H*(y2-y1));
+  });
+
+  // Building texture
+  for(let i=0;i<80;i++) {
+    const bx = (.06+Math.random()*.88)*W;
+    const by = (.06+Math.random()*.88)*H;
+    const bw = (3+Math.random()*8)*dpr;
+    const bh = (3+Math.random()*8)*dpr;
+    ctx.fillStyle = `rgba(20,30,55,${.4+Math.random()*.4})`;
+    ctx.fillRect(bx,by,bw,bh);
+  }
+
+  // Roads
+  roads.forEach(([x1,y1,x2,y2]) => {
+    const j1 = junctions.find(j=>Math.abs(j.lat-y1)<.05&&Math.abs(j.lng-x1)<.05);
+    const j2 = junctions.find(j=>Math.abs(j.lat-y2)<.05&&Math.abs(j.lng-x2)<.05);
+    const avgLevel = j1&&j2 ? (j1.level+j2.level)/2 : 1;
+    const col = jamColor(Math.round(avgLevel));
+    ctx.strokeStyle = col+'66'; ctx.lineWidth = 5*dpr; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(W*x1,H*y1); ctx.lineTo(W*x2,H*y2); ctx.stroke();
+    ctx.strokeStyle = col+'22'; ctx.lineWidth = 14*dpr;
+    ctx.beginPath(); ctx.moveTo(W*x1,H*y1); ctx.lineTo(W*x2,H*y2); ctx.stroke();
+  });
+
+  // Predicted jam overlay (dashed purple)
+  if(currentLayer==='prediction') {
+    roads.forEach(([x1,y1,x2,y2]) => {
+      const j1 = junctions.find(j=>Math.abs(j.lat-y1)<.05&&Math.abs(j.lng-x1)<.05);
+      if(j1&&j1.level>=3) {
+        ctx.strokeStyle='rgba(191,90,242,0.4)'; ctx.lineWidth=3*dpr;
+        ctx.setLineDash([6*dpr,6*dpr]);
+        ctx.beginPath(); ctx.moveTo(W*x1+4*dpr,H*y1); ctx.lineTo(W*x2+4*dpr,H*y2); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    });
+  }
+
+  // CCTV coverage zones
+  if(currentLayer==='cctv') {
+    junctions.slice(0,6).forEach((j,i) => {
+      const nx=j.lng*W, ny=j.lat*H;
+      const r=(W*.1)*(0.8+.2*Math.sin(tick*.04+i));
+      ctx.fillStyle='rgba(90,200,250,0.06)';
+      ctx.beginPath(); ctx.arc(nx,ny,r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(90,200,250,0.15)'; ctx.lineWidth=dpr;
+      ctx.setLineDash([3*dpr,5*dpr]);
+      ctx.beginPath(); ctx.arc(nx,ny,r,0,Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+    });
+  }
+
+  // Flow vectors
+  if(currentLayer==='flow') {
+    junctions.forEach(j => {
+      const nx=j.lng*W, ny=j.lat*H;
+      const speed = j.speed/60 * W*.08;
+      const angle = (j.lat+j.lng)*Math.PI*3;
+      const ex=nx+Math.cos(angle)*speed, ey=ny+Math.sin(angle)*speed;
+      ctx.strokeStyle=`rgba(10,132,255,${.3+j.flow/100*.5})`;
+      ctx.lineWidth=2*dpr; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(nx,ny); ctx.lineTo(ex,ey); ctx.stroke();
+      // Arrowhead
+      ctx.fillStyle=`rgba(10,132,255,${.5+j.flow/100*.4})`;
+      ctx.beginPath();
+      const aw=4*dpr;
+      ctx.moveTo(ex,ey);
+      ctx.lineTo(ex-aw*Math.cos(angle-.5),ey-aw*Math.sin(angle-.5));
+      ctx.lineTo(ex-aw*Math.cos(angle+.5),ey-aw*Math.sin(angle+.5));
+      ctx.closePath(); ctx.fill();
+    });
+  }
+
+  // Junction nodes
+  junctions.forEach(j => {
+    const nx=j.lng*W, ny=j.lat*H;
+    const R=9*dpr;
+    const col=jamColor(j.level);
+    const isSelected=selectedJunc&&selectedJunc.id===j.id;
+
+    // Outer pulse for L4+
+    if(j.level>=4) {
+      const pr=R+(8+4*Math.sin(tick*.08+j.lat*5))*dpr;
+      ctx.strokeStyle=col+'33'; ctx.lineWidth=2*dpr;
+      ctx.beginPath(); ctx.arc(nx,ny,pr,0,Math.PI*2); ctx.stroke();
+    }
+
+    // Incident marker
+    if(j.incident) {
+      ctx.fillStyle='rgba(255,45,85,0.15)';
+      ctx.beginPath(); ctx.arc(nx,ny,R*2.5,0,Math.PI*2); ctx.fill();
+    }
+
+    // Main dot
+    ctx.fillStyle=col+(isSelected?'ff':'cc');
+    ctx.beginPath(); ctx.arc(nx,ny,R*(isSelected?1.4:1),0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=isSelected?'#fff':col+'88';
+    ctx.lineWidth=(isSelected?2.5:1)*dpr;
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle=isSelected?'#fff':'rgba(184,204,232,.7)';
+    ctx.font=`400 ${8*dpr}px 'Share Tech Mono',monospace`;
+    ctx.textAlign='center';
+    ctx.fillText(j.id, nx, ny-R-4*dpr);
+
+    // Speed indicator text
+    if(isSelected||j.level>=4) {
+      ctx.fillStyle=col;
+      ctx.font=`400 ${7*dpr}px 'Share Tech Mono',monospace`;
+      ctx.fillText(`L${j.level}`, nx, ny+R+9*dpr);
+    }
+
+    j._nx=nx; j._ny=ny; j._r=R+10*dpr;
+  });
+}
+
+// ── CCTV FEEDS ───────────────────────────────────────────
+const cctvCameras = [
+  {id:'CAM-01',name:'Central Interchange',junction:'JX-01'},
+  {id:'CAM-02',name:'North Arterial',junction:'JX-02'},
+  {id:'CAM-03',name:'East Ring',junction:'JX-03'},
+  {id:'CAM-04',name:'Southbound Exp',junction:'JX-04'},
+  {id:'CAM-05',name:'West Flyover',junction:'JX-05'},
+  {id:'CAM-06',name:'Tech Park Entry',junction:'JX-06'},
+];
+
+function buildCCTVStrip() {
+  const strip = document.getElementById('cctv-strip');
+  strip.innerHTML = '';
+  cctvCameras.forEach((cam,i) => {
+    const junc = junctions.find(j=>j.id===cam.junction);
+    const densityLevel = junc.density>70?'high':junc.density>45?'med':'low';
+    const densityText = junc.density>70?`L${junc.level} HEAVY`:junc.density>45?`L${junc.level} MOD`:`L${junc.level} CLEAR`;
+    const div = document.createElement('div');
+    div.className='cctv-feed';
+    div.innerHTML=`
+      <canvas id="cctv-${i}" width="1" height="1" style="width:100%;height:100%"></canvas>
+      <div class="cctv-label">${cam.id} · ${cam.name}</div>
+      <div class="cctv-rec"></div>
+      <div class="cctv-density ${densityLevel}">${densityText}</div>`;
+    div.onclick=()=>selectJunc(cam.junction);
+    strip.appendChild(div);
+  });
+  // Draw CCTV simulations after DOM ready
+  setTimeout(()=>{
+    cctvCameras.forEach((cam,i)=>drawCCTV(i,cam.junction));
+  },50);
+}
+
+function drawCCTV(idx, juncId) {
+  const el = document.getElementById(`cctv-${idx}`);
+  if(!el) return;
+  const r = el.parentElement.getBoundingClientRect();
+  el.width = r.width * devicePixelRatio;
+  el.height = r.height * devicePixelRatio;
+  const c = el.getContext('2d');
+  const W2=el.width, H2=el.height;
+  c.fillStyle='#05080f'; c.fillRect(0,0,W2,H2);
+
+  // Scanlines
+  for(let y=0;y<H2;y+=2) {
+    c.fillStyle='rgba(0,0,0,0.15)'; c.fillRect(0,y,W2,1);
+  }
+
+  // Road surface
+  c.fillStyle='rgba(20,30,50,0.8)'; c.fillRect(W2*.1,0,W2*.8,H2);
+  c.fillStyle='rgba(25,35,55,0.9)'; c.fillRect(W2*.25,0,W2*.5,H2);
+
+  const junc=junctions.find(j=>j.id===juncId);
+  const count=Math.round(junc.density/100*12);
+
+  // Simulate vehicles
+  for(let i=0;i<count;i++) {
+    const vx = (W2*.2)+Math.random()*(W2*.6);
+    const vy = Math.random()*H2;
+    const vw = (8+Math.random()*6)*devicePixelRatio;
+    const vh = (4+Math.random()*3)*devicePixelRatio;
+    const vcol = ['#ff2d55','#ff9500','#ffd60a','#5ac8fa','#0a84ff'][Math.floor(Math.random()*5)];
+    c.fillStyle=vcol;
+    c.fillRect(vx,vy,vw,vh);
+    c.fillStyle='rgba(255,255,255,0.4)';
+    c.fillRect(vx+vw*.7,vy+vh*.1,vw*.2,vh*.3);
+    c.fillRect(vx+vw*.7,vy+vh*.6,vw*.2,vh*.3);
+  }
+
+  // YOLO bounding boxes
+  const detected=Math.min(count,6);
+  for(let i=0;i<detected;i++) {
+    const bx=(W2*.15)+Math.random()*(W2*.6);
+    const by=Math.random()*(H2*.85);
+    const bw=(18+Math.random()*20)*devicePixelRatio;
+    const bh=(10+Math.random()*12)*devicePixelRatio;
+    c.strokeStyle=junc.level>=4?'rgba(255,45,85,.8)':'rgba(48,209,88,.8)';
+    c.lineWidth=devicePixelRatio;
+    c.strokeRect(bx,by,bw,bh);
+    c.fillStyle=junc.level>=4?'rgba(255,45,85,.9)':'rgba(48,209,88,.9)';
+    c.font=`${7*devicePixelRatio}px monospace`;
+    c.fillText(`V${i+1}`,bx+2*devicePixelRatio,by-2*devicePixelRatio);
+  }
+
+  // CRT vignette
+  const grad=c.createRadialGradient(W2/2,H2/2,H2*.2,W2/2,H2/2,H2*.8);
+  grad.addColorStop(0,'rgba(0,0,0,0)');
+  grad.addColorStop(1,'rgba(0,0,0,0.6)');
+  c.fillStyle=grad; c.fillRect(0,0,W2,H2);
+
+  // Timestamp overlay
+  c.fillStyle='rgba(0,230,118,0.7)';
+  c.font=`${7*devicePixelRatio}px monospace`;
+  c.fillText(new Date().toISOString().substring(11,19),4*devicePixelRatio,H2-4*devicePixelRatio);
+}
+
+// ── JUNCTION LIST ─────────────────────────────────────────
+function renderJuncList() {
+  const sorted=[...junctions].sort((a,b)=>b.level-a.level||b.density-a.density);
+  document.getElementById('junc-list').innerHTML=sorted.map(j=>{
+    const isActive=selectedJunc&&selectedJunc.id===j.id;
+    return `<div class="junc-card${isActive?' active':''}" onclick="selectJunc('${j.id}')">
+      <div class="junc-top">
+        <span class="junc-name" style="color:${jamColor(j.level)}">${j.name}</span>
+        <span class="jam-badge jam-${j.level}">L${j.level}</span>
+      </div>
+      <div class="junc-meta">
+        ${j.density} veh/km² &nbsp;·&nbsp; ${j.speed} km/h &nbsp;·&nbsp; +${j.eta} min ETA<br>
+        CCTV: ${j.cctv} &nbsp;·&nbsp; GPS: ${j.gps}% &nbsp;·&nbsp; CV: ${j.cv}%
+      </div>
+      <div class="flow-bar"><div class="flow-fill" style="width:${j.density}%;background:${jamColor(j.level)}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── SELECT JUNCTION ───────────────────────────────────────
+function selectJunc(id) {
+  selectedJunc = junctions.find(j=>j.id===id);
+  renderJuncList();
+  renderAnalytics();
+}
+
+function renderAnalytics() {
+  if(!selectedJunc) return;
+  const j=selectedJunc;
+  document.getElementById('k-density').textContent=j.density+' /km²';
+  document.getElementById('k-flow').textContent=j.flow;
+  document.getElementById('k-speed').textContent=j.speed+' km/h';
+  document.getElementById('k-eta').textContent=j.eta>0?'+'+j.eta:'0';
+
+  // Fusion meter
+  const fComponents=[
+    {lbl:'CCTV (CV)',val:j.cv,col:'#5ac8fa'},
+    {lbl:'GPS (Maps)',val:j.gps,col:'#0a84ff'},
+    {lbl:'Fusion Score',val:j.fusion,col:'#bf5af2'},
+    {lbl:'Confidence',val:Math.round((j.cv+j.gps)/2),col:'#30d158'},
+  ];
+  document.getElementById('fusion-meter').innerHTML=fComponents.map(f=>`
+    <div class="fm-row">
+      <div class="fm-lbl">${f.lbl}</div>
+      <div class="fm-bar"><div class="fm-fill" style="width:${f.val}%;background:${f.col}"></div></div>
+      <div class="fm-val" style="color:${f.col}">${f.val}</div>
+    </div>`).join('');
+
+  // Validation
+  const valItems=[
+    {type:j.level>=4?'confirmed':'false-pos',msg:j.level>=4?'GPS congestion CONFIRMED by CCTV density count':'GPS alert ELIMINATED — CCTV shows normal flow'},
+    {type:j.level>=3?'confirmed':'unverified',msg:j.level>=3?'CCTV vehicle count > GPS threshold — VALIDATED':'Insufficient CCTV evidence — UNVERIFIED'},
+    {type:'confirmed',msg:`Fusion score ${j.fusion}% — False positive probability: ${100-j.fusion}%`},
+  ];
+  document.getElementById('val-list').innerHTML=valItems.map(v=>`
+    <div class="validation val ${v.type}">
+      <div class="val-dot" style="background:${v.type==='confirmed'?'#30d158':v.type==='false-pos'?'#ff2d55':'#ff9500'}"></div>
+      ${v.msg}
+    </div>`).join('');
+
+  renderLSTMChart();
+  renderAlerts();
+}
+
+// ── LSTM CHART ────────────────────────────────────────────
+const lstmCanvas=document.getElementById('lstm-canvas');
+const lstmCtx=lstmCanvas.getContext('2d');
+
+function renderLSTMChart() {
+  if(!selectedJunc) return;
+  const r=lstmCanvas.parentElement.getBoundingClientRect();
+  lstmCanvas.width=r.width*devicePixelRatio;
+  lstmCanvas.height=r.height*devicePixelRatio;
+  lstmCanvas.style.width=r.width+'px';
+  lstmCanvas.style.height=r.height+'px';
+  const lc=lstmCtx;
+  const LW=lstmCanvas.width, LH=lstmCanvas.height;
+  const dpr=devicePixelRatio;
+
+  lc.fillStyle='#0b0f1e'; lc.fillRect(0,0,LW,LH);
+  lc.strokeStyle='rgba(28,40,64,0.6)'; lc.lineWidth=.5*dpr;
+  for(let y=0;y<LH;y+=LH/4){lc.beginPath();lc.moveTo(0,y);lc.lineTo(LW,y);lc.stroke()}
+
+  // Historical data (last 20 ticks)
+  const j=selectedJunc;
+  const base=j.level/5;
+  const histLen=20, foreLen=10;
+  const totalLen=histLen+foreLen;
+  const pts=[];
+  for(let i=0;i<histLen;i++){
+    pts.push(Math.max(.05,Math.min(.95,base+.1*Math.sin(i*.5+j.lat*3)+.05*(Math.random()-.5))));
+  }
+  // LSTM forecast
+  const forecastProb=Math.min(.95,base+.1*(horizonMin/45)+.05*(Math.random()-.5));
+  for(let i=0;i<foreLen;i++){
+    pts.push(Math.max(.05,Math.min(.95,forecastProb+.03*Math.sin(i*.8)+.02*(Math.random()-.5))));
+  }
+
+  const xStep=LW/(totalLen-1);
+
+  // Fill area
+  lc.beginPath();
+  pts.forEach((p,i)=>{
+    const x=i*xStep, y=LH-(p*LH*.85)-LH*.05;
+    if(i===0) lc.moveTo(x,y); else lc.lineTo(x,y);
+  });
+  lc.lineTo(LW,LH); lc.lineTo(0,LH); lc.closePath();
+  const grad=lc.createLinearGradient(0,0,0,LH);
+  grad.addColorStop(0,'rgba(255,45,85,0.3)');
+  grad.addColorStop(1,'rgba(255,45,85,0.02)');
+  lc.fillStyle=grad; lc.fill();
+
+  // Historical line
+  lc.beginPath(); lc.strokeStyle='#ff2d55'; lc.lineWidth=1.5*dpr;
+  pts.slice(0,histLen).forEach((p,i)=>{
+    const x=i*xStep, y=LH-(p*LH*.85)-LH*.05;
+    if(i===0) lc.moveTo(x,y); else lc.lineTo(x,y);
+  });
+  lc.stroke();
+
+  // Forecast line (dashed)
+  lc.beginPath(); lc.strokeStyle='#bf5af2'; lc.lineWidth=1.5*dpr;
+  lc.setLineDash([4*dpr,3*dpr]);
+  pts.slice(histLen-1).forEach((p,i)=>{
+    const x=(histLen-1+i)*xStep, y=LH-(p*LH*.85)-LH*.05;
+    if(i===0) lc.moveTo(x,y); else lc.lineTo(x,y);
+  });
+  lc.stroke(); lc.setLineDash([]);
+
+  // Divider
+  const dx=(histLen-1)*xStep;
+  lc.strokeStyle='rgba(90,200,250,0.3)'; lc.lineWidth=dpr;
+  lc.setLineDash([3*dpr,3*dpr]);
+  lc.beginPath(); lc.moveTo(dx,0); lc.lineTo(dx,LH); lc.stroke();
+  lc.setLineDash([]);
+
+  // NOW label
+  lc.fillStyle='rgba(90,200,250,0.6)'; lc.font=`${7*dpr}px 'Share Tech Mono',monospace`;
+  lc.fillText('NOW',dx+2*dpr,10*dpr);
+
+  // Probability label
+  const prob=Math.round(forecastProb*100);
+  document.getElementById('lstm-prob-lbl').textContent=`${prob}% L5 PROBABILITY`;
+  document.getElementById('lstm-prob-lbl').style.color=prob>70?'#ff2d55':prob>40?'#ff9500':'#30d158';
+}
+
+// ── ALERTS ────────────────────────────────────────────────
+const allAlerts=[
+  {t:'crit',msg:'JX-01: Standstill L5 confirmed — CCTV density 94/km²',time:'09:41'},
+  {t:'warn',msg:'JX-02: GPS lag 4.2 min — CCTV override activated',time:'09:40'},
+  {t:'warn',msg:'JX-06: Tech Park entry — peak absorption 82% match',time:'09:39'},
+  {t:'info',msg:'LSTM: JX-03 predicted L5 breach in 28 min — 73% prob',time:'09:38'},
+  {t:'ok',msg:'JX-07: Airport spur — false positive eliminated by CV',time:'09:37'},
+];
+
+function renderAlerts() {
+  document.getElementById('alert-list').innerHTML=allAlerts.map(a=>
+    `<div class="alert ${a.t}"><span class="alert-t">${a.time}</span>${a.msg}</div>`
+  ).join('');
+}
+
+// ── GPS PIPELINE ─────────────────────────────────────────
+const pxRoutes=['ROUTE-A01','ROUTE-B14','ROUTE-C07','ROUTE-D22','ROUTE-E09'];
+function updatePxStream() {
+  const rows=pxRoutes.map(r=>{
+    const latency=Math.round(2+Math.random()*4);
+    const fill=Math.round(60+Math.random()*35);
+    const col=fill>85?'#ff2d55':fill>70?'#ff9500':'#30d158';
+    return `<div class="px-row">
+      <span style="width:68px;flex-shrink:0">${r}</span>
+      <div class="px-bar"><div class="px-fill" style="width:${fill}%;background:${col}"></div></div>
+      <span style="margin-left:4px">${latency}ms</span>
+    </div>`;
+  }).join('');
+  document.getElementById('px-rows').innerHTML=rows;
+}
+
+// ── CONTROLS ─────────────────────────────────────────────
+function setLayer(l) {
+  currentLayer=l;
+  ['cong','pred','cctv','flow'].forEach(x=>{
+    const map={'cong':'congestion','pred':'prediction','cctv':'cctv','flow':'flow'};
+    const el=document.getElementById('lb-'+x);
+    if(el) el.classList.toggle('on',map[x]===l);
+  });
+}
+
+function setHorizon(mo,el) {
+  horizonMin=mo;
+  document.querySelectorAll('.ph-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderLSTMChart();
+}
+
+function injectIncident() {
+  const clearJuncs=junctions.filter(j=>j.level<3);
+  if(clearJuncs.length) {
+    const target=clearJuncs[Math.floor(Math.random()*clearJuncs.length)];
+    target.level=4; target.density=Math.min(99,target.density+30);
+    target.speed=Math.max(8,target.speed-20); target.eta+=10;
+    const t=new Date().toISOString().substring(11,19);
+    allAlerts.unshift({t:'crit',msg:`INCIDENT INJECTED: ${target.name} — L${target.level} detected by CCTV`,time:t});
+    if(allAlerts.length>6) allAlerts.pop();
+    renderAlerts();
+    renderJuncList();
+    setTimeout(()=>{target.level=Math.max(2,target.level-1);renderJuncList();},6000);
+  }
+}
+
+// ── HEADER COUNTERS ───────────────────────────────────────
+let vCount=4241, fpCount=14;
+function updateHeader() {
+  vCount+=Math.floor((Math.random()-.4)*20);
+  fpCount+=Math.random()<.2?1:0;
+  document.getElementById('h-v').textContent=vCount.toLocaleString();
+  document.getElementById('h-fp').textContent=fpCount;
+  document.getElementById('ts-bar').textContent=new Date().toISOString().replace('T',' ').substring(0,19)+' UTC';
+}
+
+// ── MAP CLICK ─────────────────────────────────────────────
+C.addEventListener('click',e=>{
+  const r=C.getBoundingClientRect();
+  const mx=(e.clientX-r.left)*devicePixelRatio;
+  const my=(e.clientY-r.top)*devicePixelRatio;
+  junctions.forEach(j=>{
+    if(j._nx&&Math.hypot(mx-j._nx,my-j._ny)<j._r) selectJunc(j.id);
+  });
+});
+
+// ── SIMULATE DATA DRIFT ───────────────────────────────────
+function simulateDrift() {
+  junctions.forEach(j=>{
+    j.density=Math.max(10,Math.min(98,j.density+(Math.random()-.5)*4));
+    j.speed=Math.max(4,Math.min(65,j.speed+(Math.random()-.5)*3));
+    j.flow=Math.max(5,Math.min(80,j.flow+(Math.random()-.5)*3));
+    j.cv=Math.max(20,Math.min(98,j.cv+(Math.random()-.5)*2));
+    j.gps=Math.max(20,Math.min(98,j.gps+(Math.random()-.5)*2));
+    j.fusion=Math.round((j.cv+j.gps)/2);
+    if(j.density>85&&j.level<5) j.level=Math.min(5,j.level+1);
+    else if(j.density<40&&j.level>1) j.level=Math.max(1,j.level-1);
+  });
+}
+
+// ── MAIN LOOP ─────────────────────────────────────────────
+buildCCTVStrip();
+selectJunc('JX-01');
+renderJuncList();
+renderAlerts();
+
+let frame=0;
+function loop() {
+  requestAnimationFrame(loop);
+  tick++; frame++;
+  if(frame%2===0) drawCity();
+  if(frame%60===0) { simulateDrift(); renderJuncList(); updateHeader(); updatePxStream(); }
+  if(frame%90===0) { cctvCameras.forEach((cam,i)=>drawCCTV(i,cam.junction)); }
+  if(frame%120===0&&selectedJunc) renderLSTMChart();
+}
+loop();
+</script>
+</body>
+</html>
